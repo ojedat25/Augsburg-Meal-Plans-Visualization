@@ -1,0 +1,135 @@
+---
+title: "Augsburg Meal Plans and Housing"
+author: "Toni Ojeda"
+date: "2026-03-22"
+categories: [Code, Analysis, News]
+---
+
+Augsburg has raised meal plan prices every year since 2013, up 35-42% depending on the plan. The question I wanted to look at was whether that tracks with anything real, like food inflation or shifts in how many students are actually living on campus, two things you would reasonably expect to drive dining costs.
+
+It does not track. The clearest example is 2016-2017 and 2017-2018, when average food inflation was near zero and prices went up anyway. The big 2022-2023 inflation spike to nearly 10% is the one year where the increase made sense on paper, but even before and after that outlier, the pattern holds. Housing rates for both freshmen and non-freshmen fell by nearly 58% over the full period, so fewer students are using these plans than ever. If pricing followed demand or input costs, you would expect some correlation. It is not really there.
+
+```{r}
+#| echo: false
+#| message: false
+
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(scales)
+```
+
+## Housing
+```{r}
+#| echo: false
+#| message: false
+#| fig-width: 8
+#| fig-height: 5
+
+custom_theme <- theme_minimal(base_size = 13) +
+  theme(
+    plot.background = element_rect(fill = "#fcf5ed", color = NA),
+    panel.background = element_rect(fill = "#fcf5ed", color = NA),
+    plot.title = element_text(face = "bold", color = "#6b1f2b", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(color = "#6b1f2b", hjust = 0.5),
+    plot.caption = element_text(color = "#6b1f2b", face = "italic", size = 10, hjust = 1, margin = margin(t = 10)),
+    axis.text.x = element_text(angle = 45, hjust = 1, color = "#6b1f2b"),
+    axis.text.y = element_text(color = "#6b1f2b"),
+    axis.title = element_text(face = "bold", color = "#6b1f2b"),
+    legend.position = "top",
+    legend.title = element_text(face = "bold", color = "#6b1f2b"),
+    panel.grid.major = element_line(color = "#eaddcf"),
+    panel.grid.minor = element_blank()
+  )
+
+meal_data <- read_excel("AugsburgMealPlans.xlsx")
+
+meal_data <- meal_data |>
+  mutate(Academic_Year = factor(Academic_Year, levels = unique(Academic_Year)))
+
+plot_dorming <- ggplot(subset(meal_data, Academic_Year != "2025-2026"), aes(x = Academic_Year)) +
+  geom_line(aes(y = entering_freshman_housing * 100, color = "Entering Freshmen", group = 1), 
+            linewidth = 1.4, na.rm = TRUE) +
+  geom_line(aes(y = non_fresman_housing * 100, color = "Non-Freshmen", group = 1), 
+            linewidth = 1.4, na.rm = TRUE) +
+  scale_color_manual(
+    name = "Student Type",
+    values = c("Entering Freshmen" = "#61C9A8", "Non-Freshmen" = "#BA3B46")
+  ) +
+  scale_y_continuous(limits = c(30, 85)) + 
+  labs(
+    title = "Percentage of Entering Freshmen and Non-Freshmen Dorming",
+    subtitle = "Changes over Academic Years",
+    caption = "Student Housing (2013-2025): Entering Freshmen = -58.73%, Non-Freshmen = -57.17%",
+    x = "Academic Year",
+    y = "Percentage (%)"
+  ) +
+  custom_theme
+
+plot_dorming
+```
+
+## Meal Plan Costs
+```{r}
+#| echo: false
+#| message: false
+#| fig-width: 8
+#| fig-height: 5
+
+meal_bar_data <- meal_data |>
+  select(Academic_Year, fifteen_meal_plan, five_meal_cost) |>
+  pivot_longer(
+    cols = c(fifteen_meal_plan, five_meal_cost),
+    names_to = "Plan_Type",
+    values_to = "Cost"
+  ) |>
+  mutate(
+    Plan_Type = factor(Plan_Type, 
+                       levels = c("fifteen_meal_plan", "five_meal_cost"),
+                       labels = c("15-Plus", "5-Plus"))
+  )
+
+plot_meal <- ggplot() +
+  geom_col(
+    data = meal_bar_data,
+    aes(x = Academic_Year, y = Cost, fill = Plan_Type),
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  geom_line(
+    data = meal_data,
+    aes(x = Academic_Year, y = avg_food_inflation * 1000, group = 1),
+    color = "#c29b5a",
+    linewidth = 1.4
+  ) +
+  geom_point(
+    data = meal_data,
+    aes(x = Academic_Year, y = avg_food_inflation * 1000),
+    color = "#6b1f2b", 
+    size = 2.5
+  ) +
+  scale_y_continuous(
+    name = "Meal Plan Cost ($)",
+    labels = dollar,
+    sec.axis = sec_axis(~ . / 1000, name = "Avg Food Inflation")
+  ) +
+  scale_fill_manual(
+    name = "Meal Plan Type",
+    values = c("15-Plus" = "#283044", "5-Plus" = "#A0BDCF")
+  ) +
+  labs(
+    title = "Meal Plan Costs & Food Inflation",
+    subtitle = "Changes over Academic Years.",
+    caption = "Meal Plan Growth (2013-2025): 5-Plus = +35.2%, 15-Plus = +42.4%",
+    x = "Academic Year"
+  ) +
+  custom_theme +
+  theme(
+    axis.title.y.right = element_text(color = "#c29b5a"),
+    axis.text.y.right = element_text(color = "#c29b5a")
+  )
+
+plot_meal
+```
